@@ -1,1 +1,10 @@
 #!/usr/bin/env julia
+using OhMyJulia
+
+include(rel"src/Falcon.jl")
+
+using Falcon
+
+bam = Bam(STDIN)
+
+write_sam(STDOUT, bam, Task(()->for i in bam produce(i) end))

@@ -66,7 +66,7 @@ function parse_tags(x::Bytes)
     tags = Dict{UInt16, Any}()
 
     while !eof(f)
-        tag = f>>UInt16
+        tag = f >> UInt16
         c   = f >> Byte
         value = c == Byte('A') ? f >> Byte |> Char :
                 c == Byte('c') ? f >> Int8 :
