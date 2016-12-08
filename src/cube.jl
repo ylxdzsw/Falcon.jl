@@ -6,7 +6,7 @@ type Pileuper
     reads::Vector{Read}
     window::PriorityQueue{Read, Int32, Base.Order.ForwardOrdering} # Read -> ref pos of last matching base
     muts::PriorityQueue{Mut, Int32, Base.Order.ForwardOrdering}    # Mut  -> pos
-    chr::Int
+    chr::Int32
     Pileuper(x) = new(collect(x), PriorityQueue(Read, Int32), PriorityQueue(Mut, Int32), -2)
 end
 
@@ -29,7 +29,6 @@ function produce_muts(p::Pileuper)
     if !isempty(p.muts)
         pos = peek(p.muts).second
         while !isempty(p.window) && peek(p.window).second < pos
-            println("$(peek(p.window).first.qname) leave window")
             dequeue!(p.window)
         end
     end
@@ -46,14 +45,12 @@ function add_muts(p::Pileuper, r::Read)
         produce_muts(p)
     end
 
-    println("$(r.qname) enter window")
     enqueue!(p.window, r, r.pos + calc_ref_length(r) - 1)
 
     for mut in r.muts
         pos = calc_ref_pos(r, mut.pos) |> car
         pos = isa(mut, Deletion) ? pos+1 : pos
         mut = Mut(mut, pos)
-        haskey(p.muts, mut) || println("$(mut) enter queue")
         haskey(p.muts, mut) || enqueue!(p.muts, mut, pos)
     end
 end

@@ -179,17 +179,37 @@ function calc_ref_pos(r::Read, relpos)
                *2 =(refpos (+ refpos .))
                *4 .((min (>> cigar 4) relpos)
                     ?((== relpos .)
-                      return('((+ refpos 1) 0x04))
+                      return('(refpos 0x04))
                       =(relpos (- relpos .))))
                *5 >()
                (error "TODO: cigar op not supported"))
         """
     end
-    Int32(-1), 0xff
+    Int32(0), 0xff
 end
 
-function calc_read_pos(r::Read, pos)
-
+function calc_read_pos(r::Read, refpos)
+    relpos, refpos = 0, refpos - r.pos + 1
+    for cigar in r.cigar
+        relpos == 0 && cigar&0b1101 != 0 && continue
+        λ"""
+        switch((& cigar 0x0f)
+               *0 .((min (>> cigar 4) refpos)
+                    ?((== refpos .)
+                      return('((+ relpos .) 0x00))
+                      >(=(relpos (+ relpos .))
+                        =(refpos (- refpos .)))))
+               *1 =(relpos (+ relpos .))
+               *2 .((min (>> cigar 4) refpos)
+                    ?((== refpos .)
+                      return('(relpos 0x02))
+                      =(refpos (- refpos .))))
+               *4 =(relpos (+ relpos .))
+               *5 >()
+               (error "TODO: cigar op not supported"))
+        """
+    end
+    Int32(0), 0xff
 end
 
 function del_end!(s::Bytes)
