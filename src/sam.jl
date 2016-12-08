@@ -18,8 +18,6 @@ function write_sam(f::IO, bam::Bam, reads)
         f << '\t' << (r.next_pos + 1) << '\t' << r.tlen << '\t' << r.seq
         f << '\t' << (r.qual[1] == 0xff ? '*' : map(x->x+0x21, r.qual))
 
-        r[tag"XX"] # force parse tags
-
         for (k,v) in r.tags
             write(f, '\t', k)
             f << ':' << tagtype(v) << ':' << v

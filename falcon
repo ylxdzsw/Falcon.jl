@@ -1,10 +1,87 @@
 #!/usr/bin/env julia
 using OhMyJulia
+using JSON
 
-include(rel"src/Falcon.jl")
+include(rel"falcon/Falcon.jl")
 
 using Falcon
 
-bam = Bam(STDIN)
+bam = collect(Task(() -> for read in Bam(STDIN) produce(read) end))
 
-write_sam(STDOUT, bam, Task(()->for i in bam produce(i) end))
+Nreads = length(bam)
+
+mismatch = @task for read in bam
+    nm = read[tag"NM"]
+    nm == nothing && continue
+    indel = reduce(+, 0, cigar>>4-1 for cigar in read.cigar if cigar&0x000f in (1, 2))
+    produce(nm - indel)
+end
+
+mismatch = groupby(identity, (x,y)->x+1, 0, mismatch) ~ collect ~ sort(rev=true)
+
+mismatch_acc = @with Vector{Pair{Int64, Int64}}(length(mismatch)) do x
+    acc = 0
+
+    for (i, (k, v)) in enumerate(mismatch)
+        acc += v
+        x[i] = k => acc
+    end
+end
+
+mismatch_acc = map(mismatch_acc) do x
+    x.first, x.second / Nreads
+end
+
+align_status = @task for read in bam
+    read[tag"XA"] != nothing ? produce(:alter) :
+    isempty(read.cigar)      ? produce(:unmap) :
+                               produce(:normal)
+end
+
+align_status = groupby(identity, (x,y)->x+1, 0, align_status)
+
+open("fuck.html", "w") do f
+    f << """<html><head><meta charset="utf8"><script>"""
+    f << open(read, "/home/zhangsw/.julia/v0.5/PlotlyJS/deps/plotly-latest.min.js")
+    f << """</script></head><body>"""
+    f << """<div id="bar" class="plotly-graph-div"></div>"""
+    f << """<script>
+        Plotly.newPlot("bar", [{
+            x: $(json(map(car, mismatch))),
+            y: $(json(map(cadr, mismatch))),
+            name: "sum",
+            type: "bar"
+        }, {
+            x: $(json(map(car, mismatch_acc))),
+            y: $(json(map(cadr, mismatch_acc))),
+            yaxis: "y2",
+            name: "acc",
+            type: "scatter"
+        }], {
+            title: "# mismatch per read",
+            width: 1200,
+            height: 900,
+            margin: {r:180, l:150, b:120, t:120},
+            yaxis: {title: 'number'},
+            yaxis2: {
+                title: 'percentage_acc',
+                overlaying: 'y',
+                side: 'right'
+            }
+        })
+    </script>"""
+
+    f << """<div id="pie" class="plotly-graph-div"></div>"""
+    f << """<script>
+        Plotly.newPlot("pie", [{
+            values: [$(align_status[:alter]), $(align_status[:unmap]), $(align_status[:normal])],
+            labels: ["多匹配", "未匹配", "正常"],
+            type: "pie"
+        }], {
+            title: "align status",
+            width: 1200,
+            height: 900,
+            margin: {r:180, l:150, b:120, t:120}
+        })
+    </script>"""
+end

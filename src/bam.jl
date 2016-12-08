@@ -38,6 +38,10 @@ function check_magic(f::IO)
     end
 end
 
-start(bam::Bam) = nothing
-next(bam::Bam, ::Void) = Read(bam.handle), nothing
-done(bam::Bam, ::Void) = eof(bam.handle)
+start(bam::Bam)           = nothing
+next(bam::Bam, ::Void)    = Read(bam.handle), nothing
+done(bam::Bam, ::Void)    = eof(bam.handle)
+iteratorsize(::Type{Bam}) = Base.SizeUnknown()
+eltype(::Type{Bam})       = Read
+
+show(io::IO, bam::Bam) = show(io, "Bam($(bam.handle.name))")
