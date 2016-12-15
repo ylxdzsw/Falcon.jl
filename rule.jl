@@ -13,8 +13,9 @@ end
 
 immutable Rule
     name::String
-    by::Symbol   # read or mut
-    clip::Symbol # hard or soft
+    bymut::Bool # read or mut
+    soft::Bool  # hard or soft
+    desc::String
     var::Vector{Variable}
     filt::Vector{Filter}
     stat::Vector{Symbol}
@@ -36,7 +37,8 @@ function load_rule_file(filename)
                      '(ref(line.args 2) (getfield ref(line.args 3) :args))
                      '("" line.args)))
         switch((car def)
-          *(Symbol "@rule") (push! rules =(rule (Rule *(cdr def) ref(Variable) ref(Filter) ref(Symbol) ref(Symbol))))
+          *(Symbol "@rule") (push! rules =(rule (Rule ref(def 2) (== ref(def 3) :bymut) (== ref(def 4) :soft)
+                                                      doc ref(Variable) ref(Filter) ref(Symbol) ref(Symbol))))
           *(Symbol "@var") (push! rule.var (Variable{(eval (cadr (getfield (cadr def) :args)))}
                                  (car (getfield (cadr def) :args)) doc
                                  switch((car (getfield ref(def 3) :args))
@@ -64,7 +66,7 @@ function gen_var_factory(f, vars)
     end
 end
 
-function build_stat(bymut, rules, writehead, writeline)
+function build_stat(bymut, rules, callback)
     f = []
     vars = Dict(v.name => v for r in rules for v in r.var)
     gen_var = gen_var_factory(f, vars)
@@ -75,8 +77,8 @@ function build_stat(bymut, rules, writehead, writeline)
             foreach(gen_var, filt.deps)
             p = :(
                 !$(reduce((x,y)->Expr(:||, :($y == nothing), x), false, filt.deps)) && !$(filt.func) ?
-                    $(rule.clip == :soft ? bymut ? :( push!(filters, rule.name) ) : :( pass=false ) :
-                                         :(continue)) : $p
+                    $(rule.soft ? bymut ? :( push!(filters, $(rule.name)) ) : :( pass=false ) :
+                                 :(continue)) : $p
             )
         end
         push!(f, p)
@@ -93,24 +95,23 @@ function build_stat(bymut, rules, writehead, writeline)
 
     f = bymut ? quote function(x)
         $((:( $(Symbol("stat_", s)) = $(vartype(vars[s]))[] ) for r in rules for s in r.stat)...)
-        $writehead((anno for r in rules for anno in r.anno), (r.name for r in rules))
         for (reads, chr, mut) in x
-            info = Tuple{Variable, Any}[]
+            info = IOBuffer()
             filters = String[]
             $(f...)
-            $writeline(reads, chr, mut, info, filters)
+            $callback(reads, chr, mut, String(info.data[1:end-1]), filters)
         end
     end end : quote function(x)
         $((:( $(Symbol("stat_", s)) = $(vartype(vars[s]))[] ) for r in rules for s in r.stat)...)
         for read in x
             pass = true
             $(f...)
-            $writeline(read, pass)
+            $callback(read, pass)
         end
     end end
 
     eval(Main, f)
 end
 
-function build_prod(by, rules, writehead, writeline)
+function build_prod(by, rules, writehead, callback)
 end

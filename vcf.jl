@@ -1,12 +1,16 @@
-function write_vcf_head(f::IO, info::String, filters::String)
+function write_vcf_head(f::IO, rules)
+    vars = Dict(v.name => v for r in rules for v in r.var)
+    info = join(info_head(vars[anno]) for r in rules for anno in r.anno)
+    filters = join(filter_head(r) for r in rules if r.soft && !isempty(r.filt))
+
     f << """
     ##fileformat=VCFv4.2
     ##fileDate=$(Dates.format(now(), "yyyymmdd"))
     ##source=FalconV0.0.1
     """ << info << filters << """
     ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
-    ##FORMAT=<ID=RD,Number=1,Type=Integer,Description="Depth of reference-supporting bases (reads1)">
-    ##FORMAT=<ID=AD,Number=1,Type=Integer,Description="Depth of variant-supporting bases (reads2)">
+    ##FORMAT=<ID=RD,Number=1,Type=Integer,Description="Depth of reference-supporting bases">
+    ##FORMAT=<ID=AD,Number=1,Type=Integer,Description="Depth of variant-supporting bases">
     #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tCFDNA
     """
 end
@@ -40,3 +44,14 @@ anno_info(f, var::Variable{Int32})   = :( $f << $(Meta.quot(var.name)) << '=' <<
 anno_info(f, var::Variable{Float32}) = :( $f << $(Meta.quot(var.name)) << '=' << $(var.name) << ';' )
 anno_info(f, var::Variable{String})  = :( $f << $(Meta.quot(var.name)) << '=' << $(var.name) << ';' )
 anno_info(f, var::Variable{Bool})    = :( ($(var.name) && $f << $(Meta.quot(var.name))); $f << ';' )
+
+_info_head(var, n, t) = "##INFO=<ID=$(var.name),Number=$n,Type=$t,Description=\"$(var.desc)\">\n"
+info_head(var::Variable{Vector{Int32}})   = _info_head(var, 'A', "Integer")
+info_head(var::Variable{Vector{Float32}}) = _info_head(var, 'A', "Float")
+info_head(var::Variable{Vector{String}})  = _info_head(var, 'A', "String")
+info_head(var::Variable{Int32})           = _info_head(var,   1, "Integer")
+info_head(var::Variable{Float32})         = _info_head(var,   1, "Float")
+info_head(var::Variable{String})          = _info_head(var,   1, "String")
+info_head(var::Variable{Bool})            = _info_head(var,   0, "Flag")
+
+filter_head(rule) = "##Filter=<ID=$(rule.name),Description=\"$(rule.desc)\">\n"

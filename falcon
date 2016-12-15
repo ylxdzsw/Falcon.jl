@@ -5,7 +5,8 @@ using OhMyJulia
 using Insane
 using StatsBase
 using HypothesisTests
-import Base: start, next, done, iteratorsize, eltype, getindex, setindex!, show, ==, hash, write
+import Base: start, next, done, iteratorsize, eltype,
+             getindex, setindex!, show, ==, hash, write
 
 include("mut.jl")
 include("read.jl")
@@ -25,13 +26,12 @@ const o = let
             help = "rule files"
             nargs = '+'
         "--bam", "-b"
-            help = "input bam, uncompressed (use gzip -cd to uncompress). defualt is STDIN"
+            help = "input bam, uncompressed (use gzip -cd to decompress). defualt is STDIN"
             default = "-"
         "--sam", "-s"
             help = "output sam file, `-` means STDOUT"
         "--vcf", "-v"
             help = "output vcf file, `-` means STDOUT"
-            default = "-"
         "--explore", "-e"
             help = "explore mode"
             action = :store_true
@@ -40,15 +40,15 @@ const o = let
     parse_args(s) |> to_module
 end
 
-const rules = reduce(++, map(load_rule_file, o.rules))
+const rules = mapreduce(load_rule_file, ++, o.rules)
+
+const bam = Bam(o.bam == "-" ? STDIN : open(o.bam))
 
 if o.explore
     error("TODO")
 end
 
-bam = Bam(o.bam == "-" ? STDIN : open(o.bam))
-
-reads = filter_reads(rules, bam)
+const reads = filter_reads(filter(x->!x.bymut, rules), bam)
 
 if o.sam != nothing
     sam = o.sam == "-" ? STDOUT : open(o.sam, "w")
@@ -56,4 +56,10 @@ if o.sam != nothing
     for read in reads
         write_sam_line(sam, bam, read)
     end
+end
+
+if o.vcf != nothing
+    vcf = o.vcf == "-" ? STDOUT : open(o.vcf, "w")
+    write_vcf_head(vcf, rules)
+    filter_muts(vcf, filter(x->x.bymut, rules), bam, reads)
 end

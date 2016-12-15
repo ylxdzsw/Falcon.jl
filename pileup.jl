@@ -5,7 +5,7 @@ type Pileuper
     window::PriorityQueue{Read, Int32, Base.Order.ForwardOrdering} # Read -> ref pos of last matching base
     muts::PriorityQueue{Mut, Int32, Base.Order.ForwardOrdering}    # Mut  -> pos
     chr::Int32
-    Pileuper(x) = new(collect(x), PriorityQueue(Read, Int32), PriorityQueue(Mut, Int32), -2)
+    Pileuper(x) = new(x, PriorityQueue(Read, Int32), PriorityQueue(Mut, Int32), -2)
 end
 
 pileup(x) = pileup(Pileuper(x))
