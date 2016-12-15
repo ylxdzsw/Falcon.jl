@@ -1,87 +1,59 @@
 #!/usr/bin/env julia
+
+using ArgParse
 using OhMyJulia
-using JSON
+using Insane
+using StatsBase
+using HypothesisTests
+import Base: start, next, done, iteratorsize, eltype, getindex, setindex!, show, ==, hash, write
 
-include(rel"falcon/Falcon.jl")
+include("mut.jl")
+include("read.jl")
+include("bam.jl")
+include("sam.jl")
+include("pair.jl")
+include("rule.jl")
+include("vcf.jl")
+include("pileup.jl")
+include("driver.jl")
 
-using Falcon
+const o = let
+    s = ArgParseSettings()
 
-bam = collect(Task(() -> for read in Bam(STDIN) produce(read) end))
-
-Nreads = length(bam)
-
-mismatch = @task for read in bam
-    nm = read[tag"NM"]
-    nm == nothing && continue
-    indel = reduce(+, 0, cigar>>4-1 for cigar in read.cigar if cigar&0x000f in (1, 2))
-    produce(nm - indel)
-end
-
-mismatch = groupby(identity, (x,y)->x+1, 0, mismatch) ~ collect ~ sort(rev=true)
-
-mismatch_acc = @with Vector{Pair{Int64, Int64}}(length(mismatch)) do x
-    acc = 0
-
-    for (i, (k, v)) in enumerate(mismatch)
-        acc += v
-        x[i] = k => acc
+    @add_arg_table s begin
+        "rules"
+            help = "rule files"
+            nargs = '+'
+        "--bam", "-b"
+            help = "input bam, uncompressed (use gzip -cd to uncompress). defualt is STDIN"
+            default = "-"
+        "--sam", "-s"
+            help = "output sam file, `-` means STDOUT"
+        "--vcf", "-v"
+            help = "output vcf file, `-` means STDOUT"
+            default = "-"
+        "--explore", "-e"
+            help = "explore mode"
+            action = :store_true
     end
+
+    parse_args(s) |> to_module
 end
 
-mismatch_acc = map(mismatch_acc) do x
-    x.first, x.second / Nreads
+const rules = reduce(++, map(load_rule_file, o.rules))
+
+if o.explore
+    error("TODO")
 end
 
-align_status = @task for read in bam
-    read[tag"XA"] != nothing ? produce(:alter) :
-    isempty(read.cigar)      ? produce(:unmap) :
-                               produce(:normal)
-end
+bam = Bam(o.bam == "-" ? STDIN : open(o.bam))
 
-align_status = groupby(identity, (x,y)->x+1, 0, align_status)
+reads = filter_reads(rules, bam)
 
-open("fuck.html", "w") do f
-    f << """<html><head><meta charset="utf8"><script>"""
-    f << open(read, "/home/zhangsw/.julia/v0.5/PlotlyJS/deps/plotly-latest.min.js")
-    f << """</script></head><body>"""
-    f << """<div id="bar" class="plotly-graph-div"></div>"""
-    f << """<script>
-        Plotly.newPlot("bar", [{
-            x: $(json(map(car, mismatch))),
-            y: $(json(map(cadr, mismatch))),
-            name: "sum",
-            type: "bar"
-        }, {
-            x: $(json(map(car, mismatch_acc))),
-            y: $(json(map(cadr, mismatch_acc))),
-            yaxis: "y2",
-            name: "acc",
-            type: "scatter"
-        }], {
-            title: "# mismatch per read",
-            width: 1200,
-            height: 900,
-            margin: {r:180, l:150, b:120, t:120},
-            yaxis: {title: 'number'},
-            yaxis2: {
-                title: 'percentage_acc',
-                overlaying: 'y',
-                side: 'right'
-            }
-        })
-    </script>"""
-
-    f << """<div id="pie" class="plotly-graph-div"></div>"""
-    f << """<script>
-        Plotly.newPlot("pie", [{
-            values: [$(align_status[:alter]), $(align_status[:unmap]), $(align_status[:normal])],
-            labels: ["多匹配", "未匹配", "正常"],
-            type: "pie"
-        }], {
-            title: "align status",
-            width: 1200,
-            height: 900,
-            margin: {r:180, l:150, b:120, t:120}
-        })
-    </script>"""
+if o.sam != nothing
+    sam = o.sam == "-" ? STDOUT : open(o.sam, "w")
+    write_sam_head(sam, bam)
+    for read in reads
+        write_sam_line(sam, bam, read)
+    end
 end

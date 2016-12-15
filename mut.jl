@@ -25,9 +25,6 @@ hash(x::Deletion, y::UInt64)   = hash(x.pos, hash(x.bases, y))
 show(io::IO, snp::SNP)         = io << "SNP(" << snp.pos << ":" << snp.ref << "->" << snp.alt << ')'
 show(io::IO, indel::Insertion) = io << "Insertion(" << indel.pos << ":" << indel.bases << ')'
 show(io::IO, indel::Deletion)  = io << "Deletion(" << indel.pos << ":" << indel.bases << ')'
-Mut(x::SNP, pos)               = SNP(pos, x.ref, x.alt)
-Mut(x::Insertion, pos)         = Insertion(pos, x.bases)
-Mut(x::Deletion, pos)          = Deletion(pos, x.bases)
 
 macro advance_cigar()
     esc(quote

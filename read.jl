@@ -1,5 +1,3 @@
-export Read, @tag_str
-
 const seqcode = b"=ACMGRSVTWYHKDBN"
 
 macro tag_str(x)
@@ -29,6 +27,7 @@ type Read
     qual::Bytes
     tags::Dict{UInt16, Any}
     muts::Vector{Mut}
+    mate::Read
 
     function Read(f::IO)
         block_size = f >> Int32
@@ -78,8 +77,16 @@ type Read
     end
 end
 
+function hastag(r::Read, tag::UInt16)
+    tag in r.tags
+end
+
 function getindex(r::Read, tag::UInt16)
     get(r.tags, tag, nothing)
+end
+
+function setindex!(r::Read, value, tag)
+    r.tags[reinterpret(UInt16, string(tag).data)[1]] = value
 end
 
 function parse_tags(x::Bytes)
@@ -89,15 +96,15 @@ function parse_tags(x::Bytes)
     while !eof(f)
         tag = f >> UInt16
         c   = f >> Byte
-        value = c == Byte('A') ? f >> Byte |> Char :
+        value = c == Byte('Z') ? readuntil(f, '\0') |> del_end! :
+                c == Byte('i') ? f >> Int32 :
+                c == Byte('I') ? f >> UInt32 :
                 c == Byte('c') ? f >> Int8 :
                 c == Byte('C') ? f >> UInt8 :
                 c == Byte('s') ? f >> Int16 :
                 c == Byte('S') ? f >> UInt16 :
-                c == Byte('i') ? f >> Int32 :
-                c == Byte('I') ? f >> UInt32 :
                 c == Byte('f') ? f >> Float32 :
-                c == Byte('Z') ? readuntil(f, '\0') |> del_end! :
+                c == Byte('A') ? f >> Byte |> Char :
                 c == Byte('H') ? error("TODO") :
                 c == Byte('B') ? error("TODO") :
                 error("unknown tag type $(Char(c))")
@@ -176,7 +183,7 @@ function calc_ref_pos(r::Read, relpos)
                     ?((== relpos .)
                       return('(refpos 0x01))
                       =(relpos (- relpos .))))
-               *2 =(refpos (+ refpos .))
+               *2 =(refpos (+ refpos (>> cigar 4)))
                *4 .((min (>> cigar 4) relpos)
                     ?((== relpos .)
                       return('(refpos 0x04))
@@ -191,7 +198,6 @@ end
 function calc_read_pos(r::Read, refpos)
     relpos, refpos = 0, refpos - r.pos + 1
     for cigar in r.cigar
-        relpos == 0 && cigar&0b1101 != 0 && continue
         λ"""
         switch((& cigar 0x0f)
                *0 .((min (>> cigar 4) refpos)
@@ -199,18 +205,25 @@ function calc_read_pos(r::Read, refpos)
                       return('((+ relpos .) 0x00))
                       >(=(relpos (+ relpos .))
                         =(refpos (- refpos .)))))
-               *1 =(relpos (+ relpos .))
+               *1 =(relpos (+ relpos (>> cigar 4)))
                *2 .((min (>> cigar 4) refpos)
                     ?((== refpos .)
                       return('(relpos 0x02))
                       =(refpos (- refpos .))))
-               *4 =(relpos (+ relpos .))
+               *4 =(relpos (+ relpos (>> cigar 4)))
                *5 >()
                (error "TODO: cigar op not supported"))
         """
     end
     Int32(0), 0xff
 end
+
+map_to_read(x::SNP, r::Read)       = SNP(car(calc_read_pos(r, x.pos)), x.ref, x.alt)
+map_to_read(x::Insertion, r::Read) = Insertion(car(calc_read_pos(r, x.pos))+1, x.bases)
+map_to_read(x::Deletion, r::Read)  = Deletion(car(calc_read_pos(r, x.pos)), x.bases)
+map_to_ref(x::SNP, r::Read)        = SNP(car(calc_ref_pos(r, x.pos)), x.ref, x.alt)
+map_to_ref(x::Insertion, r::Read)  = Insertion(car(calc_ref_pos(r, x.pos)), x.bases)
+map_to_ref(x::Deletion, r::Read)   = Deletion(car(calc_ref_pos(r, x.pos))+1, x.bases)
 
 function del_end!(s::Bytes)
     ccall(:jl_array_del_end, Void, (Any, UInt), s, 1)

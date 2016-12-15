@@ -1,7 +1,5 @@
 using Base.Collections
 
-export pileup
-
 type Pileuper
     reads::Vector{Read}
     window::PriorityQueue{Read, Int32, Base.Order.ForwardOrdering} # Read -> ref pos of last matching base
@@ -48,9 +46,7 @@ function add_muts(p::Pileuper, r::Read)
     enqueue!(p.window, r, r.pos + calc_ref_length(r) - 1)
 
     for mut in r.muts
-        pos = calc_ref_pos(r, mut.pos) |> car
-        pos = isa(mut, Deletion) ? pos+1 : pos
-        mut = Mut(mut, pos)
-        haskey(p.muts, mut) || enqueue!(p.muts, mut, pos)
+        mut = map_to_ref(mut, r)
+        haskey(p.muts, mut) || enqueue!(p.muts, mut, mut.pos)
     end
 end
