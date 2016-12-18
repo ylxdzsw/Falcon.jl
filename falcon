@@ -5,6 +5,8 @@ using OhMyJulia
 using Insane
 using StatsBase
 using HypothesisTests
+using JsonBuilder
+using Restful
 import Base: start, next, done, iteratorsize, eltype,
              getindex, setindex!, show, ==, hash, write
 
@@ -15,6 +17,7 @@ include("sam.jl")
 include("pair.jl")
 include("rule.jl")
 include("vcf.jl")
+include("stat.jl")
 include("pileup.jl")
 include("driver.jl")
 
@@ -32,6 +35,8 @@ const o = let
             help = "output sam file, `-` means STDOUT"
         "--vcf", "-v"
             help = "output vcf file, `-` means STDOUT"
+        "--dir", "-d"
+            help = "stat output dir, must exist already."
         "--explore", "-e"
             help = "explore mode"
             action = :store_true
@@ -48,7 +53,7 @@ if o.explore
     error("TODO")
 end
 
-const reads = filter_reads(filter(x->!x.bymut, rules), bam)
+const reads = filter_reads(filter(x->!x.bymut, rules), bam, o.dir)
 
 if o.sam != nothing
     sam = o.sam == "-" ? STDOUT : open(o.sam, "w")
@@ -61,5 +66,5 @@ end
 if o.vcf != nothing
     vcf = o.vcf == "-" ? STDOUT : open(o.vcf, "w")
     write_vcf_head(vcf, rules)
-    filter_muts(vcf, filter(x->x.bymut, rules), bam, reads)
+    filter_muts(vcf, filter(x->x.bymut, rules), bam, reads, o.dir)
 end

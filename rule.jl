@@ -66,7 +66,7 @@ function gen_var_factory(f, vars)
     end
 end
 
-function build_stat(bymut, rules, callback)
+function build_rule_func(bymut, rules, writeline, plotstat=nothing)
     f = []
     vars = Dict(v.name => v for r in rules for v in r.var)
     gen_var = gen_var_factory(f, vars)
@@ -83,7 +83,7 @@ function build_stat(bymut, rules, callback)
         end
         push!(f, p)
 
-        for stat in rule.stat
+        plotstat != nothing && for stat in rule.stat
             push!(f, :( $stat != nothing && push!($(Symbol("stat_", stat)), $stat) ))
         end
 
@@ -94,24 +94,23 @@ function build_stat(bymut, rules, callback)
     end
 
     f = bymut ? quote function(x)
-        $((:( $(Symbol("stat_", s)) = $(vartype(vars[s]))[] ) for r in rules for s in r.stat)...)
+        $((plotstat != nothing ? (:( $(Symbol("stat_", s)) = $(vartype(vars[s]))[] ) for r in rules for s in r.stat) : ())...)
         for (reads, chr, mut) in x
             info = IOBuffer()
             filters = String[]
             $(f...)
-            $callback(reads, chr, mut, String(info.data[1:end-1]), filters)
+            $writeline(reads, chr, mut, String(info.data[1:end-1]), filters)
         end
+        $((plotstat != nothing ? (:( $plotstat($(vars[s]), $(Symbol("stat_", s))) ) for r in rules for s in r.stat) : ())...)
     end end : quote function(x)
-        $((:( $(Symbol("stat_", s)) = $(vartype(vars[s]))[] ) for r in rules for s in r.stat)...)
+        $((plotstat != nothing ? (:( $(Symbol("stat_", s)) = $(vartype(vars[s]))[] ) for r in rules for s in r.stat) : ())...)
         for read in x
             pass = true
             $(f...)
-            $callback(read, pass)
+            $writeline(read, pass)
         end
+        $((plotstat != nothing ? (:( $plotstat($(vars[s]), $(Symbol("stat_", s))) ) for r in rules for s in r.stat) : ())...)
     end end
 
     eval(Main, f)
-end
-
-function build_prod(by, rules, writehead, callback)
 end
