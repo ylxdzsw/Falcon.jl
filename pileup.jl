@@ -13,34 +13,37 @@ pileup(x) = pileup(Pileuper(x))
 function pileup(p::Pileuper)
     for r in p.reads
         if r.refID != p.chr
-            flush_muts(p)
+            flush_muts!(p)
             p.chr = r.refID
         end
-        add_muts(p, r)
+        add_muts!(p, r)
     end
-    flush_muts(p)
+    flush_muts!(p)
 end
 
-function produce_muts(p::Pileuper)
-    produce((keys(p.window), p.chr, dequeue!(p.muts)))
+function produce_muts!(p::Pileuper)
+    mut = dequeue!(p.muts)
 
-    if !isempty(p.muts)
-        pos = peek(p.muts).second
-        while !isempty(p.window) && peek(p.window).second < pos
-            dequeue!(p.window)
-        end
+    while !isempty(p.window) && peek(p.window).second < mut.pos
+        dequeue!(p.window)
     end
+
+    produce((keys(p.window), p.chr, mut))
 end
 
-function flush_muts(p::Pileuper)
+function flush_muts!(p::Pileuper)
     while !isempty(p.muts)
-        produce_muts(p)
+        produce_muts!(p)
     end
+
+    # clear p.window by hack; not sure if this is faster than just allocating a new one
+    empty!(p.window.xs)
+    empty!(p.window.index)
 end
 
-function add_muts(p::Pileuper, r::Read)
+function add_muts!(p::Pileuper, r::Read)
     while !isempty(p.muts) && peek(p.muts).second < r.pos
-        produce_muts(p)
+        produce_muts!(p)
     end
 
     enqueue!(p.window, r, r.pos + calc_ref_length(r) - 1)

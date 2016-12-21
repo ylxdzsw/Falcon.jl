@@ -8,7 +8,7 @@ using HypothesisTests
 using JsonBuilder
 using Restful
 import Base: start, next, done, iteratorsize, eltype,
-             getindex, setindex!, show, ==, hash, write
+             getindex, setindex!, show, ==, hash
 
 include("mut.jl")
 include("read.jl")
@@ -37,6 +37,9 @@ const o = let
             help = "output vcf file, `-` means STDOUT"
         "--dir", "-d"
             help = "stat output dir, must exist already."
+        "--nopair", "-n"
+            help = "don't pair reads; read.mate will be unaccessable"
+            action = :store_true
         "--explore", "-e"
             help = "explore mode"
             action = :store_true
@@ -49,11 +52,17 @@ const rules = mapreduce(load_rule_file, ++, o.rules)
 
 const bam = Bam(o.bam == "-" ? STDIN : open(o.bam))
 
+reads = collect(bam)
+
+if !o.nopair
+    fast_pair!(reads)
+end
+
 if o.explore
     error("TODO")
 end
 
-const reads = filter_reads(filter(x->!x.bymut, rules), bam, o.dir)
+reads = filter_reads(filter(x->!x.bymut, rules), reads, o.dir)
 
 if o.sam != nothing
     sam = o.sam == "-" ? STDOUT : open(o.sam, "w")
