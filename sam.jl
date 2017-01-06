@@ -1,3 +1,5 @@
+export write_sam_head, write_sam_line
+
 const cigarcode = b"MIDNSHP=X"
 
 function write_sam_head(f::IO, bam::Bam)

@@ -2,24 +2,9 @@
 
 using ArgParse
 using OhMyJulia
-using Insane
-using StatsBase
-using HypothesisTests
-using JsonBuilder
-using Restful
-import Base: start, next, done, iteratorsize, eltype,
-             getindex, setindex!, show, ==, hash
 
-include("mut.jl")
-include("read.jl")
-include("bam.jl")
-include("sam.jl")
-include("pair.jl")
-include("rule.jl")
-include("vcf.jl")
-include("stat.jl")
-include("pileup.jl")
-include("driver.jl")
+include(rel"Falcon.jl")
+using Falcon
 
 const o = let
     s = ArgParseSettings()
@@ -43,6 +28,9 @@ const o = let
         "--explore", "-e"
             help = "explore mode"
             action = :store_true
+        "--debug", "--verbos"
+            help = "output debug infomation"
+            action = :store_true
     end
 
     parse_args(s) |> to_module
@@ -62,7 +50,7 @@ if o.explore
     error("TODO")
 end
 
-reads = filter_reads(filter(x->!x.bymut, rules), reads, o.dir)
+reads = filter_reads(filter(x->!x.bymut, rules), reads, statdir = o.dir, debug = o.debug)
 
 if o.sam != nothing
     sam = o.sam == "-" ? STDOUT : open(o.sam, "w")
@@ -75,5 +63,5 @@ end
 if o.vcf != nothing
     vcf = o.vcf == "-" ? STDOUT : open(o.vcf, "w")
     write_vcf_head(vcf, rules)
-    filter_muts(vcf, filter(x->x.bymut, rules), bam, reads, o.dir)
+    filter_muts(vcf, filter(x->x.bymut, rules), bam, reads, statdir = o.dir, debug = o.debug)
 end

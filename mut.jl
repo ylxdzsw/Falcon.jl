@@ -1,3 +1,5 @@
+export SNP, Insertion, Deletion
+
 abstract Mut
 
 immutable SNP <: Mut

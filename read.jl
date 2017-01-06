@@ -1,3 +1,5 @@
+export @tag_str, calc_distance, calc_ref_pos, calc_read_pos, map_to_read, map_to_ref
+
 const seqcode = b"=ACMGRSVTWYHKDBN"
 
 macro tag_str(x)
@@ -162,14 +164,15 @@ function showflag(io::IO, flag::UInt16)
     io
 end
 
-function calc_ref_length(r::Read)
+"distance between the first and last base in ref"
+function calc_distance(r::Read)
     reduce(0, r.cigar) do len, cigar
         ifelse(cigar&0b1101 == 0, len + cigar>>4, len)
     end
 end
 
 # return (ref_pos, cigar_op)
-function calc_ref_pos(r::Read, relpos)
+function calc_ref_pos(r::Read, relpos::Integer)
     refpos = r.pos - 1
     for cigar in r.cigar
         λ"""
@@ -195,7 +198,7 @@ function calc_ref_pos(r::Read, relpos)
     Int32(0), 0xff
 end
 
-function calc_read_pos(r::Read, refpos)
+function calc_read_pos(r::Read, refpos::Integer)
     relpos, refpos = 0, refpos - r.pos + 1
     for cigar in r.cigar
         λ"""

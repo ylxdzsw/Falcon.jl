@@ -1,3 +1,5 @@
+export load_rule_file
+
 immutable Variable{T}
     name::Symbol
     desc::String
@@ -18,7 +20,7 @@ immutable Rule
     desc::String
     var::Vector{Variable}
     filt::Vector{Filter}
-    stat::Vector{Symbol}
+    stat::Vector{Vector{Symbol}}
     anno::Vector{Symbol}
 end
 
@@ -50,7 +52,7 @@ function load_rule_file(filename)
                                      (isa . Symbol) ref(Symbol .)
                                      (isa . Expr) (collect ..args))
                                    (cadr (getfield (cadr def) :args))))
-          *(Symbol "@stat") (push! rule.stat (cadr def))
+          *(Symbol "@stat") (push! rule.stat (cdr def))
           *(Symbol "@anno") (push! rule.anno (cadr def)))))
     """
 end
@@ -66,10 +68,15 @@ function gen_var_factory(f, vars)
     end
 end
 
-function build_rule_func(bymut, rules, writeline, plotstat=nothing)
+function build_rule_func(bymut, rules, writeline, plotstat=nothing; debug=false)
     f = []
-    vars = Dict(v.name => v for r in rules for v in r.var)
+    vars = try # julia panics if rules is empty, which I think is a bug
+        Dict(v.name => v for r in rules for v in r.var)
+    catch
+        Dict()
+    end
     gen_var = gen_var_factory(f, vars)
+    stats = unique(s for rule in rules for stats in rule.stat for s in stats)
 
     for rule in rules
         p = nothing
@@ -83,34 +90,34 @@ function build_rule_func(bymut, rules, writeline, plotstat=nothing)
         end
         push!(f, p)
 
-        plotstat != nothing && for stat in rule.stat
+        plotstat != nothing && for stat in stats
+            gen_var(stat)
             push!(f, :( $stat != nothing && push!($(Symbol("stat_", stat)), $stat) ))
         end
 
         for anno in rule.anno
+            gen_var(anno)
             push!(f, :( $anno != nothing && $( bymut ? anno_info(:info, vars[anno]) :
                                                      :(read[$(Meta.quot(anno))] = $anno) ) ))
         end
     end
 
-    f = bymut ? quote function(x)
-        $((plotstat != nothing ? (:( $(Symbol("stat_", s)) = $(vartype(vars[s]))[] ) for r in rules for s in r.stat) : ())...)
-        for (reads, chr, mut) in x
+    f = quote function(x)
+        $((plotstat != nothing ? (:( $(Symbol("stat_", s)) = $(vartype(vars[s]))[] ) for s in stats) : ())...)
+        $(bymut ? :(for (reads, chr, mut) in x
             info = IOBuffer()
             filters = String[]
             $(f...)
             $writeline(reads, chr, mut, String(info.data[1:end-1]), filters)
-        end
-        $((plotstat != nothing ? (:( $plotstat($(vars[s]), $(Symbol("stat_", s))) ) for r in rules for s in r.stat) : ())...)
-    end end : quote function(x)
-        $((plotstat != nothing ? (:( $(Symbol("stat_", s)) = $(vartype(vars[s]))[] ) for r in rules for s in r.stat) : ())...)
-        for read in x
+        end) : :(for read in x
             pass = true
             $(f...)
             $writeline(read, pass)
-        end
-        $((plotstat != nothing ? (:( $plotstat($(vars[s]), $(Symbol("stat_", s))) ) for r in rules for s in r.stat) : ())...)
+        end))
+        $((plotstat != nothing ? (:( $plotstat($((vars[s] for s in stats)...), $((Symbol("stat_", s) for s in stats)...)) ) for r in rules for stats in r.stat) : ())...)
     end end
+
+    debug && println(STDERR, f)
 
     eval(Main, f)
 end

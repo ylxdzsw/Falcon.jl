@@ -1,3 +1,5 @@
+export pileup
+
 using Base.Collections
 
 type Pileuper
@@ -46,7 +48,7 @@ function add_muts!(p::Pileuper, r::Read)
         produce_muts!(p)
     end
 
-    enqueue!(p.window, r, r.pos + calc_ref_length(r) - 1)
+    enqueue!(p.window, r, r.pos + calc_distance(r) - 1)
 
     for mut in r.muts
         mut = map_to_ref(mut, r)

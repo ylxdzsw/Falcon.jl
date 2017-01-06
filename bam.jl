@@ -1,3 +1,5 @@
+export Bam
+
 immutable Bam
     header_chunk::Bytes
     refs::Vector{Tuple{String, Int32}}

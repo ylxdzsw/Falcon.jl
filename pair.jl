@@ -1,3 +1,5 @@
+export fast_pair!, full_pair!
+
 "only find mates for primary reads (flag & 0x900 == 0)"
 function fast_pair!(reads::Vector{Read})
     namedict = Dict{String, Read}()
