@@ -18,6 +18,7 @@ immutable Rule
     bymut::Bool # read or mut
     soft::Bool  # hard or soft
     desc::String
+    init::Vector{Expr}
     var::Vector{Variable}
     filt::Vector{Filter}
     stat::Vector{Vector{Symbol}}
@@ -39,8 +40,9 @@ function load_rule_file(filename)
                      '(ref(line.args 2) (getfield ref(line.args 3) :args))
                      '("" line.args)))
         switch((car def)
-          *(Symbol "@rule") (push! rules =(rule (Rule ref(def 2) (== ref(def 3) :bymut) (== ref(def 4) :soft)
-                                                      doc ref(Variable) ref(Filter) ref(Symbol) ref(Symbol))))
+          *(Symbol "@rule") (push! rules =(rule (Rule ref(def 2) (== ref(def 3) :bymut) (== ref(def 4) :soft) doc
+                                                      ref(Expr) ref(Variable) ref(Filter) ref(Symbol) ref(Symbol))))
+          *(Symbol "@init") (push! rule.init (cadr def))
           *(Symbol "@var") (push! rule.var (Variable{(eval (cadr (getfield (cadr def) :args)))}
                                  (car (getfield (cadr def) :args)) doc
                                  switch((car (getfield ref(def 3) :args))
@@ -70,13 +72,25 @@ end
 
 function build_rule_func(bymut, rules, writeline, plotstat=nothing; debug=false)
     f = []
-    vars = try # julia panics if rules is empty, which I think is a bug
+    vars = try # julia panics if rules is empty, It is a bug of Julia v0.5
         Dict(v.name => v for r in rules for v in r.var)
     catch
         Dict()
     end
     gen_var = gen_var_factory(f, vars)
-    stats = unique(s for rule in rules for stats in rule.stat for s in stats)
+    stats = try # the same bug
+        unique(s for rule in rules for stats in rule.stat for s in stats)
+    catch
+        x = []
+        for rule in rules
+            for stats in rule.stat
+                for s in stats
+                    push!(x, s)
+                end
+            end
+        end
+        unique(x)
+    end
 
     for rule in rules
         p = nothing
@@ -103,6 +117,7 @@ function build_rule_func(bymut, rules, writeline, plotstat=nothing; debug=false)
     end
 
     f = quote function(x)
+        $((init for rule in rules for init in rule.init)...)
         $((plotstat != nothing ? (:( $(Symbol("stat_", s)) = $(vartype(vars[s]))[] ) for s in stats) : ())...)
         $(bymut ? :(for (reads, chr, mut) in x
             info = IOBuffer()

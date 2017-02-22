@@ -22,6 +22,9 @@ function write_sam_line(f::IO, bam::Bam, r)
 
     for (k,v) in r.tags
         write(f, '\t', k)
+        if isa(v, Integer)
+            v = i64(v)
+        end
         f << ':' << tagtype(v) << ':' << v
     end
 

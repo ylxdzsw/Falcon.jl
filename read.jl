@@ -1,4 +1,4 @@
-export @tag_str, calc_distance, calc_ref_pos, calc_read_pos, map_to_read, map_to_ref
+export @tag_str, calc_distance, calc_ref_pos, calc_read_pos, map_to_read, map_to_ref, phred_to_prob, prob_to_phred
 
 const seqcode = b"=ACMGRSVTWYHKDBN"
 
@@ -227,6 +227,9 @@ map_to_read(x::Deletion, r::Read)  = Deletion(car(calc_read_pos(r, x.pos)), x.ba
 map_to_ref(x::SNP, r::Read)        = SNP(car(calc_ref_pos(r, x.pos)), x.ref, x.alt)
 map_to_ref(x::Insertion, r::Read)  = Insertion(car(calc_ref_pos(r, x.pos)), x.bases)
 map_to_ref(x::Deletion, r::Read)   = Deletion(car(calc_ref_pos(r, x.pos))+1, x.bases)
+
+phred_to_prob(x) = 10 ^ (-i64(x) / 10)
+prob_to_phred(x) = rount(Byte, -10 * log(10, x))
 
 function del_end!(s::Bytes)
     ccall(:jl_array_del_end, Void, (Any, UInt), s, 1)

@@ -41,19 +41,19 @@ function write_txt_line(f::IO, bam::Bam, chr::Int32, m::Mut, info::String, filte
 
 end
 
-anno_info(f, var::Variable{Vector})  = :( $f << $(Meta.quot(var.name)) << '='; join($f, $(var.name), ','); $f << ';' )
-anno_info(f, var::Variable{Int32})   = :( $f << $(Meta.quot(var.name)) << '=' << $(var.name) << ';' )
-anno_info(f, var::Variable{Float32}) = :( $f << $(Meta.quot(var.name)) << '=' << $(var.name) << ';' )
-anno_info(f, var::Variable{String})  = :( $f << $(Meta.quot(var.name)) << '=' << $(var.name) << ';' )
-anno_info(f, var::Variable{Bool})    = :( ($(var.name) && $f << $(Meta.quot(var.name))); $f << ';' )
+anno_info{T}(f, var::Variable{Vector{T}})         = :( $f << $(Meta.quot(var.name)) << '='; join($f, $(var.name), ','); $f << ';' )
+anno_info{T<:Integer}(f, var::Variable{T})        = :( $f << $(Meta.quot(var.name)) << '=' << $(var.name) << ';' )
+anno_info{T<:AbstractFloat}(f, var::Variable{T})  = :( $f << $(Meta.quot(var.name)) << '=' << $(var.name) << ';' )
+anno_info{T<:AbstractString}(f, var::Variable{T}) = :( $f << $(Meta.quot(var.name)) << '=' << $(var.name) << ';' )
+anno_info(f, var::Variable{Bool})                 = :( ($(var.name) && $f << $(Meta.quot(var.name))); $f << ';' )
 
 _info_head(var, n, t) = "##INFO=<ID=$(var.name),Number=$n,Type=$t,Description=\"$(var.desc)\">\n"
-info_head(var::Variable{Vector{Int32}})   = _info_head(var, 'A', "Integer")
-info_head(var::Variable{Vector{Float32}}) = _info_head(var, 'A', "Float")
-info_head(var::Variable{Vector{String}})  = _info_head(var, 'A', "String")
-info_head(var::Variable{Int32})           = _info_head(var,   1, "Integer")
-info_head(var::Variable{Float32})         = _info_head(var,   1, "Float")
-info_head(var::Variable{String})          = _info_head(var,   1, "String")
-info_head(var::Variable{Bool})            = _info_head(var,   0, "Flag")
+info_head{T<:Integer}(var::Variable{Vector{T}})        = _info_head(var, 'A', "Integer")
+info_head{T<:AbstractFloat}(var::Variable{Vector{T}})  = _info_head(var, 'A', "Float")
+info_head{T<:AbstractString}(var::Variable{Vector{T}}) = _info_head(var, 'A', "String")
+info_head{T<:Integer}(var::Variable{T})                = _info_head(var,   1, "Integer")
+info_head{T<:AbstractFloat}(var::Variable{T})          = _info_head(var,   1, "Float")
+info_head{T<:AbstractString}(var::Variable{T})         = _info_head(var,   1, "String")
+info_head(var::Variable{Bool})                         = _info_head(var,   0, "Flag")
 
 filter_head(rule) = "##Filter=<ID=$(rule.name),Description=\"$(rule.desc)\">\n"

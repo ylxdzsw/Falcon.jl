@@ -1,40 +1,62 @@
-function with_template(f::Function, io::IO)
+function page(f::Function, io::IO)
     io << open(read, rel"template.html") << f << "</body></html>"
 end
 
-function plot_stat{T<:Number}(f::IO, xvar::Variable{T}, xdata::Vector{T})
-    with_template(f) do f
-        f << """<section class="scen">"""
-        f << """<div id="histogram-$(xvar.name)" class="plotly-graph-div"></div>"""
-        f << """<script>
-            Plotly.newPlot("histogram-$(xvar.name)", [
-                { x: $(json"$xdata"), type: "histogram" }
-            ], {
-                title: "$(xvar.name) Histogram",
-                margin: { r:80, l:80, b:80, t:100 },
-                xaxis: { title: "$(xvar.name)" }
-            })
-        </script>"""
+function section(f::Function, io::IO)
+    io << """<section class="scen">""" << f << "</section>"
+end
 
-        f << "</section>"
+function plot(f::Function, io::IO, title::AbstractString)
+    io << """<div id="$title" class="plotly-graph-div"></div>"""
+    io << """<script>Plotly.newPlot("$title",""" << f << """)</script>"""
+end
+
+function var(io::IO, name, data)
+    io << """<script>window.$name=$(json"$data")</script>"""
+end
+
+function plot_stat{T<:Number}(f::IO, xvar::Variable{T}, xdata::Vector{T})
+    x = xvar.name
+
+    page(f) do f
+        var(f, x, xdata)
+
+        section(f) do f
+            title = "histogram-$x"
+
+            plot(f, title) do f
+                f << """[
+                    { x: $x, type: 'histogram' }
+                ], {
+                    title: '$title',
+                    xaxis: { title: '$x' },
+                }"""
+            end
+        end
+
     end
 end
 
 function plot_stat{T<:Number, S<:Number}(f::IO, xvar::Variable{T}, yvar::Variable{S}, xdata::Vector{T}, ydata::Vector{S})
-    with_template(f) do f
-        f << """<section class="scen">"""
-        f << """<div id="scatter-$(yvar.name)-$(xvar.name)" class="plotly-graph-div"></div>"""
-        f << """<script>
-            Plotly.newPlot("scatter-$(yvar.name)-$(xvar.name)", [
-                { x: $(json"$xdata"), y: $(json"$ydata"), type: "scatter" }
-            ], {
-                title: "$(yvar.name) ~ $(xvar.name)",
-                margin: { r:80, l:80, b:80, t:100 },
-                xaxis: { title: "$(xvar.name)" }
-                yaxis: { title: "$(yvar.name)" }
-            })
-        </script>"""
+    x, y = xvar.name, yvar.name
 
-        f << "</section>"
+    page(f) do f
+        var(f, x, xdata)
+        var(f, y, ydata)
+
+        # section(f) do f
+        #     title = "scatter-$y~$x"
+
+        #     plot(f, title) do f
+        #         f << """[
+        #             { x: $x, y: $y, type: 'scatter', mode: 'markers', marker: { size: 2 } }
+        #         ], {
+        #             title: '$title',
+        #             xaxis: { title: '$x' },
+        #             yaxis: { title: '$y' },
+        #         }"""
+        #     end
+        # end
+
     end
 end

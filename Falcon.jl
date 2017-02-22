@@ -4,11 +4,12 @@ module Falcon
 
 using OhMyJulia
 using Insane
-using StatsBase
-using HypothesisTests
+# using StatsBase
+# using HypothesisTests
+using Libz
 using JsonBuilder
 import Base: start, next, done, iteratorsize, eltype,
-             getindex, setindex!, show, ==, hash
+             getindex, setindex!, show, ==, hash, write
 
 include("mut.jl")
 include("read.jl")
