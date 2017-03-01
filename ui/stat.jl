@@ -1,3 +1,5 @@
+export page, section, plot, var
+
 function page(f::Function, io::IO)
     io << open(read, rel"template.html") << f << "</body></html>"
 end

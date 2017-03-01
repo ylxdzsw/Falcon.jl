@@ -1,0 +1,43 @@
+@rule "unique_dna" bymut soft
+
+@var unique_dna::Dict{Byte, Int32} (reads, mut, chr) -> if isa(mut, SNP)
+    dna = Set{Tuple{Int32, Int32, Byte, Byte}}() # start, length, is_pair/is_reverse, base
+
+    for r in reads
+        if isdefined(r, :mate) && r.mate.refID == chr
+            if r.mate in reads && pointer_from_objref(r) < pointer_from_objref(r.mate) # overlap
+                r1, r2 = calc_read_pos(r, mut.pos), calc_read_pos(r.mate, mut.pos)
+                if cadr(r1) == cadr(r2) == 0x00 && (base = r.seq[car(r1)]) == r.mate.seq[car(r2)]
+                    push!(dna, (r.pos, abs(r.tlen), 0b10, base))
+                end
+            else # non-overlap
+                pos, status = calc_read_pos(r, mut.pos)
+                status == 0x00 || continue
+                push!(dna, (r.pos, abs(r.tlen), 0b10, r.seq[pos]))
+            end
+        else # single
+            pos, status = calc_read_pos(r, mut.pos)
+            status == 0x00 || continue
+            push!(dna, (r.pos, calc_distance(r), (r.flag & 0x0010 != 0) % Byte, r.seq[pos]))
+        end
+    end
+
+    groupby(x->x[4], (x,y)->x+i32(1), i32(0), dna, dict=Dict{Byte, Int32}())
+end
+
+"number of unique dna support ref"
+@var unique_ref::Int32 (unique_dna, mut) -> isa(mut, SNP) ? get(unique_dna, mut.ref, i32(0)) : nothing
+
+"number of unique dna support alt"
+@var unique_alt::Int32 (unique_dna, mut) -> isa(mut, SNP) ? get(unique_dna, mut.alt, i32(0)) : nothing
+
+"number of unique dna"
+@var unique_depth::Int64 (unique_dna) -> sum(values(unique_dna))
+
+"unique_alt / unique_depth"
+@var unique_af::Float64 (unique_alt, unique_depth) -> if unique_depth != 0
+    unique_alt / unique_depth
+end
+
+@anno unique_ref
+@anno unique_alt

@@ -1,0 +1,28 @@
+@rule "freq_interval" bymut soft
+
+@init begin
+    freqtable = open(readlines, "/home/zhangsw/freqtable/freqtable")
+    freqtable = map(freqtable) do line
+        maxalt, content = split(line, ':')
+        parse(Int, maxalt), split(content[2:end-1], ' ')
+    end
+end
+
+@var freq_interval::NTuple{2, String} (unique_ref, unique_alt) -> if unique_ref + unique_alt > 0
+    while unique_ref + unique_alt > length(freqtable)
+        unique_ref >>= 1
+        unique_alt >>= 1
+    end
+
+    maxalt, content = freqtable[unique_ref + unique_alt]
+
+    unique_alt == 0 ? ("0.0%", "0.0%") :
+    unique_alt > maxalt ? ("20.0%", "20.0%") :
+    (content[2unique_alt - 1], content[2unique_alt])
+end
+
+@var P90::String (freq_interval) -> freq_interval[1]
+@var P98::String (freq_interval) -> freq_interval[2]
+
+@anno P90
+@anno P98

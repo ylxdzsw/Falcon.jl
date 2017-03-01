@@ -1,0 +1,36 @@
+@rule "basic" byread soft
+
+@var is_paired::Bool (read) -> isdefined(read, :mate)
+@var is_read1::Bool (read) -> read.flag & 0x0040 != 0
+@var is_read2::Bool (read) -> read.flag & 0x0080 != 0
+@var is_forward::Bool (read) -> read.flag & 0x0010 == 0
+@var is_reverse::Bool (read) -> read.flag & 0x0010 != 0
+@var is_primary::Bool (read) -> read.flag & 0x0900 == 0
+
+@var edit_distance::Int32 (read) -> read[tag"NM"]
+
+@rule "basic" bymut soft
+
+@var is_snp::Bool (mut) -> isa(mut, SNP)
+@var is_insertion::Bool (mut) -> isa(mut, Insertion)
+@var is_deletion::Bool (mut) -> isa(mut, Deletion)
+
+@var raw_depth::Int (reads) -> length(reads)
+@var raw_ref_depth::Int (raw_depth, raw_alt_depth) -> raw_depth - raw_alt_depth
+@var raw_alt_depth::Int (reads, mut) -> count(reads) do r
+    map_to_read(mut, r) in r.muts
+end
+@var raw_frequency::Float64 (raw_depth, raw_alt_depth) -> raw_alt_depth / raw_depth
+
+@var dp4::NTuple{4, Int} (reads, mut) -> begin
+    fr, rr, fa, ra = 0, 0, 0, 0
+    for r in reads
+        map_to_read(mut, r) in r.muts ? r.flag & 0x0010 != 0 ? (ra += 1) : (fa += 1) :
+                                        r.flag & 0x0010 != 0 ? (rr += 1) : (fr += 1)
+    end
+    fr, rr, fa, ra
+end
+@var raw_forward_ref::Int (dp4) -> dp4[1]
+@var raw_reverse_ref::Int (dp4) -> dp4[2]
+@var raw_forward_alt::Int (dp4) -> dp4[3]
+@var raw_reverse_alt::Int (dp4) -> dp4[4]

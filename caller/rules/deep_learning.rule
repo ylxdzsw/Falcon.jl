@@ -1,0 +1,42 @@
+@rule "deep_learning" bymut soft
+
+@var ATCGNID::Vector{Float64} (reads, mut) -> begin
+    A, T, C, G, N, I, D = ntuple(x->Tuple{Int32, Float64}[], 7) # read index (negative means reverse strand), error prob.
+    for r in reads
+        pos, status = calc_read_pos(r, mut.pos)
+        factor = r.flag & 0x0010 != 0 ? -1 : 1
+        if status == 0x02
+            prob = min(phred_to_prob(r.qual[pos]), phred_to_prob(r.qual[pos+1]))
+            push!(D, (factor * pos, prob))
+        elseif (m = findfirst(x->isa(x, Insertion) && x.pos == pos + 1, r.muts)) != 0
+            prob = minimum(map(phred_to_prob, r.qual[pos:pos+length(r.muts[m].bases)-1]))
+            push!(I, (factor * pos, prob))
+        else
+            v = factor * pos, phred_to_prob(r.qual[pos])
+            r.seq[pos] == Byte('A') ? push!(A, v) :
+            r.seq[pos] == Byte('T') ? push!(T, v) :
+            r.seq[pos] == Byte('C') ? push!(C, v) :
+            r.seq[pos] == Byte('G') ? push!(G, v) :
+            r.seq[pos] == Byte('N') ? push!(N, v) :
+            error("unexpected base $(r.seq[pos])")
+        end
+    end
+
+    list = [A,T,C,G,N,I,D]
+    forwards = map(x->count(x->car(x)>0, x), list)
+    reverses = map(length, list) - forwards
+    distinct = map(x->length(unique(map(car, x))), list)
+    averageP = map(x->isempty(x) ? 0. : mean(map(cadr, x)), list)
+
+    [forwards; reverses; distinct; averageP]
+end
+
+@anno ATCGNID
+@anno raw_ref_depth
+@anno raw_alt_depth
+@anno raw_frequency
+@anno raw_forward_ref
+@anno raw_reverse_ref
+@anno raw_forward_alt
+@anno raw_reverse_alt
+@anno unique_af

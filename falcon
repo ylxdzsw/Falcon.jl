@@ -3,7 +3,7 @@
 using ArgParse
 using OhMyJulia
 
-include(rel"Falcon.jl")
+include("Falcon.jl")
 using Falcon
 
 const o = let
