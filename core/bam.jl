@@ -1,47 +1,56 @@
-export Bam
+export Bam, BamLoader
 
-immutable Bam
+abstract AbstractBam
+
+immutable BamLoader <: AbstractBam
+    file::AbstractString
     header_chunk::Bytes
-    refs::Vector{Tuple{String, Int32}}
+    refs::Vector{Tuple{String, i32}}
     handle::IO
 
-    function Bam(f::IO)
-        check_magic(f)
-        l_text = f >> Int32
-        text   = f >> l_text
-        n_ref  = f >> Int32
+    function BamLoader(file::AbstractString)
+        f = open(file) |> ZlibInflateInputStream
+        @assert f >> 4 == [0x42, 0x41, 0x4d, 0x01]
 
-        refs   = Vector{Tuple{String, Int32}}(n_ref)
+        l_text = f >> i32
+        text   = f >> l_text
+        n_ref  = f >> i32
+
+        refs   = Vector{Tuple{String, i32}}(n_ref)
         for i in 1:n_ref
-            l_name  = f >> Int32
+            l_name  = f >> i32
             name    = f >> (l_name - 1)
-            l_ref   = f >>> 1 >> Int32
+            l_ref   = f >>> 1 >> i32
             refs[i] = name, l_ref
         end
 
-        new(text, refs, f)
+        new(file, text, refs, f)
     end
 end
 
-Bam(x::AbstractString) = Bam(open(x))
+start(bl::BamLoader)            = nothing
+next(bl::BamLoader, ::Void)     = Read(bl.handle), nothing
+done(bl::BamLoader, ::Void)     = eof(bl.handle)
+iteratorsize(::Type{BamLoader}) = Base.SizeUnknown()
+eltype(::Type{BamLoader})       = Read
 
-function check_magic(f::IO)
-    a, b, c, d = f >> 4
-    if a == 0x1f && b == 0x8b
-        error("Falcon cannot deal with compressed bam, try with `gzip -cd`")
-    elseif a == 0x42 && b == 0x41 && c == 0x4d
-        d == 0x01 || error("unsupported bam version")
-    elseif (a == 0xff && b == 0xfe) || (a == 0xfe && b == 0xff)
-        error("Windows currently not supported, generate your file in *nix environment")
-    else
-        error("cannot recogize file type; is it a valid bam?")
-    end
+show(io::IO, bl::BamLoader) = show(io, "BamLoader($(bl.file))")
+
+immutable Bam <: AbstractBam
+    file::AbstractString
+    header_chunk::Bytes
+    refs::Vector{Tuple{String, i32}}
+    reads::Vector{Read}
 end
 
-start(bam::Bam)           = nothing
-next(bam::Bam, ::Void)    = Read(bam.handle), nothing
-done(bam::Bam, ::Void)    = eof(bam.handle)
-iteratorsize(::Type{Bam}) = Base.SizeUnknown()
-eltype(::Type{Bam})       = Read
+Bam(file::AbstractString) = let bl = BamLoader(file)
+    Bam(bl.file, bl.header_chunk, bl.refs, collect(bl))
+end
 
-show(io::IO, bam::Bam) = show(io, "Bam($(bam.handle.name))")
+start(bam::Bam)           = start(bam.reads)
+next(bam::Bam, x)         = next(bam.reads, x)
+done(bam::Bam, x)         = done(bam.reads, x)
+iteratorsize(::Type{Bam}) = iteratorsize(Vector{Read})
+eltype(::Type{Bam})       = eltype(Vector{Read})
+
+show(io::IO, bam::Bam) = show(io, "Bam($(bam.file))")

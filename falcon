@@ -6,62 +6,105 @@ using OhMyJulia
 include("Falcon.jl")
 using Falcon
 
-const o = let
-    s = ArgParseSettings()
+const s = ArgParseSettings("Falcon - A Collection of BAM Tools")
 
-    @add_arg_table s begin
-        "rules"
-            help = "rule files"
-            nargs = '+'
-        "--bam", "-b"
-            help = "input bam, uncompressed (use gzip -cd to decompress). defualt is STDIN"
-            default = "-"
-        "--sam", "-s"
-            help = "output sam file, `-` means STDOUT"
-        "--vcf", "-v"
-            help = "output vcf file, `-` means STDOUT"
-        "--dir", "-d"
-            help = "stat output dir, must exist already."
-        "--nopair", "-n"
-            help = "don't pair reads; read.mate will be unaccessable"
-            action = :store_true
-        "--explore", "-e"
-            help = "explore mode"
-            action = :store_true
-        "--debug", "--verbos"
-            help = "output debug infomation"
-            action = :store_true
+@add_arg_table s begin
+    "call"
+        action = :command
+        help = "call variants (bam -> vcf)"
+    "qc"
+        action = :command
+        help = "detect possible problems (bam -> html)"
+    "cover"
+        action = :command
+        help = "find high coverage regions (bam -> bed)"
+    "index"
+        action = :command
+        help = "index a BAM file (bam -> fbi)"
+    "renewdb"
+        action = :command
+        help = "calc and save statistics into database (bams -> db)"
+    "view"
+        action = :command
+        help = "view BAM by position interactively in commandline"
+    "explore"
+        action = :command
+        help = "view BAM by position interactively in browser"
+end
+
+@add_arg_table s["call"] begin
+    "bam"
+        help = "input bam file"
+    "--rules", "-r"
+        help = "rule files"
+        nargs = '+'
+    "--vcf", "-v"
+        help = "output vcf file, `-` means STDOUT"
+    "--dir", "-d"
+        help = "stat output dir, must exist already"
+    "--nopair", "-n"
+        help = "don't pair reads; read.mate will be unaccessable"
+        action = :store_true
+    "--debug", "--verbos"
+        help = "output debug infomation"
+        action = :store_true
+end
+
+s["call"].description = "call variants using rule files"
+
+function main(::Val{:call}, o)
+    rules = mapreduce(load_rule_file, ++, o.rules)
+
+    bam = Bam(o.bam == "-" ? STDIN : open(o.bam))
+
+    reads = collect(bam)
+
+    if !o.nopair
+        fast_pair!(reads)
     end
 
-    parse_args(s) |> to_module
-end
+    reads = filter_reads(filter(x->!x.bymut, rules), reads, statdir = o.dir, debug = o.debug)
 
-const rules = mapreduce(load_rule_file, ++, o.rules)
-
-const bam = Bam(o.bam == "-" ? STDIN : open(o.bam))
-
-reads = collect(bam)
-
-if !o.nopair
-    fast_pair!(reads)
-end
-
-if o.explore
-    error("TODO")
-end
-
-reads = filter_reads(filter(x->!x.bymut, rules), reads, statdir = o.dir, debug = o.debug)
-
-if o.sam != nothing
-    sam = o.sam == "-" ? STDOUT : open(o.sam, "w")
-    write_sam_head(sam, bam)
-    for read in reads
-        write_sam_line(sam, bam, read)
+    if o.vcf != nothing
+        vcf = o.vcf == "-" ? STDOUT : open(o.vcf, "w")
+        write_vcf_head(vcf, rules)
+        filter_muts(vcf, filter(x->x.bymut, rules), bam, reads, statdir = o.dir, debug = o.debug)
     end
 end
 
-if o.vcf != nothing
-    vcf = o.vcf == "-" ? STDOUT : open(o.vcf, "w")
-    write_vcf_head(vcf, rules)
-    filter_muts(vcf, filter(x->x.bymut, rules), bam, reads, statdir = o.dir, debug = o.debug)
+@add_arg_table s["cover"] begin
+    "bam"
+        help = "input bam file"
+    "--depth", "-d"
+        help = "depth threashold"
+        arg_type = Int
+    "--bed", "-b"
+        help = "output bed file, `-` means STDOUT"
+    "--unique", "-u"
+        help = "using unique DNA number rather than reads count"
+        action = :store_true
 end
+
+s["cover"].description = "call variants using rule files"
+
+function main(::Val{:cover}, o)
+
+end
+
+@add_arg_table s["index"] begin
+    "bam"
+        help = "input bam file"
+end
+
+s["index"].description = "ensure index file of a BAM"
+
+function main(::Val{:index}, o)
+    bam = BamLoader(o.bam)
+    ensure_index(bam)
+end
+
+const args = parse_args(s)
+const cmd = args["%COMMAND%"]
+const o = args[cmd] |> to_module
+
+main(Val{Symbol(cmd)}(), o)

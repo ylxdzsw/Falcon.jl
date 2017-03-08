@@ -3,27 +3,27 @@ export SNP, Insertion, Deletion
 abstract Mut
 
 immutable SNP <: Mut
-    pos::Int32
+    pos::i32
     ref::Byte
     alt::Byte
 end
 
 immutable Insertion <: Mut
-    pos::Int32
+    pos::i32
     bases::Bytes
 end
 
 immutable Deletion <: Mut
-    pos::Int32
+    pos::i32
     bases::Bytes
 end
 
 ==(x::SNP, y::SNP)             = x.pos==y.pos && x.ref==y.ref && x.alt==y.alt
 ==(x::Insertion, y::Insertion) = x.pos==y.pos && x.bases==y.bases
 ==(x::Deletion, y::Deletion)   = x.pos==y.pos && x.bases==y.bases
-hash(x::SNP, y::UInt64)        = hash(x.pos, hash(x.ref, hash(x.alt, y)))
-hash(x::Insertion, y::UInt64)  = hash(x.pos, hash(x.bases, y))
-hash(x::Deletion, y::UInt64)   = hash(x.pos, hash(x.bases, y))
+hash(x::SNP, y::u64)           = hash(x.pos, hash(x.ref, hash(x.alt, y)))
+hash(x::Insertion, y::u64)     = hash(x.pos, hash(x.bases, y))
+hash(x::Deletion, y::u64)      = hash(x.pos, hash(x.bases, y))
 show(io::IO, snp::SNP)         = io << "SNP(" << snp.pos << ":" << snp.ref << "->" << snp.alt << ')'
 show(io::IO, indel::Insertion) = io << "Insertion(" << indel.pos << ":" << indel.bases << ')'
 show(io::IO, indel::Deletion)  = io << "Deletion(" << indel.pos << ":" << indel.bases << ')'

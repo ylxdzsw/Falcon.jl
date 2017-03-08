@@ -1,9 +1,9 @@
 export fast_pair!, full_pair!
 
 "only find mates for primary reads (flag & 0x900 == 0)"
-function fast_pair!(reads::Vector{Read})
+function fast_pair!(bam::Bam)
     namedict = Dict{String, Read}()
-    for r in reads
+    for r in bam.reads
         r.flag & 0x900 == 0 || continue
         if r.qname in keys(namedict)
             r.mate = namedict[r.qname]
@@ -13,10 +13,10 @@ function fast_pair!(reads::Vector{Read})
             namedict[r.qname] = r
         end
     end
-    reads
+    bam
 end
 
 "mates are primary reads"
-function full_pair!(reads::Vector{Read})
+function full_pair!(bam::Bam)
     error("TODO")
 end

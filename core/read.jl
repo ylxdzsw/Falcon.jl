@@ -1,9 +1,9 @@
-export @tag_str, calc_distance, calc_ref_pos, calc_read_pos, map_to_read, map_to_ref, phred_to_prob, prob_to_phred
+export Read, @tag_str, calc_distance, calc_ref_pos, calc_read_pos, map_to_read, map_to_ref, phred_to_prob, prob_to_phred
 
 const seqcode = b"=ACMGRSVTWYHKDBN"
 
 macro tag_str(x)
-    reinterpret(UInt16, x.data)[1]
+    reinterpret(u16, x.data)[1]
 end
 
 #===
@@ -16,36 +16,36 @@ all positions are 1-based
 ===#
 
 type Read
-    refID::Int32
-    pos::Int32
+    refID::i32
+    pos::i32
     mapq::Byte
-    flag::UInt16
-    next_refID::Int32
-    next_pos::Int32
-    tlen::Int32
+    flag::u16
+    next_refID::i32
+    next_pos::i32
+    tlen::i32
     qname::String
-    cigar::Vector{UInt32}
+    cigar::Vector{u32}
     seq::Bytes
     qual::Bytes
-    tags::Dict{UInt16, Any}
+    tags::Dict{u16, Any}
     muts::Vector{Mut}
     mate::Read
 
     function Read(f::IO)
-        block_size = f >> Int32
-        refID      = f >> Int32
-        pos        = f >> Int32
+        block_size = f >> i32
+        refID      = f >> i32
+        pos        = f >> i32
         l_qname    = f >> Byte
         mapq       = f >> Byte
-        n_cigar_op = f >>> UInt16 >> UInt16
-        flag       = f >> UInt16
-        l_seq      = f >> Int32
-        next_refID = f >> Int32
-        next_pos   = f >> Int32
-        tlen       = f >> Int32
+        n_cigar_op = f >>> u16 >> u16
+        flag       = f >> u16
+        l_seq      = f >> i32
+        next_refID = f >> i32
+        next_pos   = f >> i32
+        tlen       = f >> i32
         qname      = f >> l_qname |> del_end! |> String
 
-        cigar = read(f, UInt32, n_cigar_op)
+        cigar = read(f, u32, n_cigar_op)
 
         seq = Bytes(l_seq)
         for i in 1:l_seq÷2
@@ -79,24 +79,24 @@ type Read
     end
 end
 
-function hastag(r::Read, tag::UInt16)
+function hastag(r::Read, tag::u16)
     tag in r.tags
 end
 
-function getindex(r::Read, tag::UInt16)
+function getindex(r::Read, tag::u16)
     get(r.tags, tag, nothing)
 end
 
 function setindex!(r::Read, value, tag)
-    r.tags[reinterpret(UInt16, string(tag).data)[1]] = value
+    r.tags[reinterpret(u16, string(tag).data)[1]] = value
 end
 
 function parse_tags(x::Bytes)
     f    = IOBuffer(x)
-    tags = Dict{UInt16, Any}()
+    tags = Dict{u16, Any}()
 
     while !eof(f)
-        tag = f >> UInt16
+        tag = f >> u16
         c   = f >> Byte
         value = c == Byte('Z') ? readuntil(f, '\0') |> del_end! :
                 c == Byte('i') ? f >> Int32 :
@@ -146,7 +146,7 @@ function show(io::IO, r::Read)
     io << '\n'
 end
 
-function showflag(io::IO, flag::UInt16)
+function showflag(io::IO, flag::u16)
     is_first = true
     interpunct() = is_first ? (is_first=false; "") : " · "
     flag & 0x0001 != 0 && io << interpunct() << "pair_seq"
@@ -195,7 +195,7 @@ function calc_ref_pos(r::Read, relpos::Integer)
                (error "TODO: cigar op not supported"))
         """
     end
-    Int32(0), 0xff
+    i32(0), 0xff
 end
 
 function calc_read_pos(r::Read, refpos::Integer)
@@ -218,7 +218,7 @@ function calc_read_pos(r::Read, refpos::Integer)
                (error "TODO: cigar op not supported"))
         """
     end
-    Int32(0), 0xff
+    i32(0), 0xff
 end
 
 map_to_read(x::SNP, r::Read)       = SNP(car(calc_read_pos(r, x.pos)), x.ref, x.alt)
