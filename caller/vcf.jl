@@ -1,12 +1,5 @@
 export write_vcf_head, write_vcf_line, write_txt_head, write_txt_line
 
-immutable Variable{T}
-    name::Symbol
-    desc::String
-    deps::Vector{Symbol}
-    func::Expr
-end
-
 function write_vcf_head(f::IO, rules)
     vars = Dict(v.name => v for r in rules for v in r.var)
     info = join(info_head(vars[anno]) for r in rules for anno in r.anno)

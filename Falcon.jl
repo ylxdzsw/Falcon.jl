@@ -17,15 +17,19 @@ include("core/mut.jl")
 include("core/read.jl")
 include("core/bam.jl")
 include("core/sam.jl")
-include("core/vcf.jl")
 
 include("index/pair.jl")
 include("index/pileup.jl")
 include("index/index.jl")
 
+include("cover/bed.jl")
+include("cover/cover.jl")
+
 include("ui/stat.jl")
 
 include("caller/rule.jl")
 include("caller/driver.jl")
+include("caller/vcf.jl")
 
+include("bamqc/cover.jl")
 end # module

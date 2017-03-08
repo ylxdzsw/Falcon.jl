@@ -1,5 +1,12 @@
 export load_rule_file
 
+immutable Variable{T}
+    name::Symbol
+    desc::String
+    deps::Vector{Symbol}
+    func::Expr
+end
+
 immutable Filter
     desc::String
     deps::Vector{Symbol}
